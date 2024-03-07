@@ -16,6 +16,7 @@ public:
     ~Server();
 
     void run();
+	void processInstruction(const std::string& instruction);
 
 private:
     int listenSocket;

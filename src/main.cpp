@@ -11,8 +11,8 @@ int main(int argc, char* argv[]) {
     int port = std::atoi(argv[1]);
     std::string password = argv[2];
 
-    Server ircServer(port, password);
-    ircServer.run();
+    Server irc(port, password);
+    irc.run();
 
     return EXIT_SUCCESS;
 }

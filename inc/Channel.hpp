@@ -13,8 +13,6 @@ public:
     void join(Client& client);
     void part(Client& client);
 
-    // Add other necessary data structures and methods.
-
 private:
     std::string name;
     std::vector<Client*> members;
