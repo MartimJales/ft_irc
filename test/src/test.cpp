@@ -7,7 +7,7 @@
 #include <netinet/in.h>
 
 void error(const char *msg) {
-	error(msg);
+	std::cerr << msg << std::endl;
 	exit(1);
 }
 
@@ -38,15 +38,36 @@ int main(int argc, char *argv[]) {
 
     // Connect to the server
     if (connect(clientSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0)
-        error("Error connecting to server");
+	{
+		error("Error connecting to server");
+	}
+        
 
     // Send the password to the server
     int n = write(clientSocket, password, strlen(password));
     if (n < 0)
         error("Error writing to socket");
 
+	// Read the socket with new info to connect to the server
+	n = read(clientSocket, buffer, sizeof(buffer));
+	if (n < 0)
+		error("Error reading from socket");
+	if (strcmp(buffer, "Incorrect password") == 0)
+	{
+		close(clientSocket);
+		error("Password is incorrect");
+	}
+
     // Infinite loop to receive input from the user and send it to the server
     while (true) {
+		// Read messages from Server
+		// n = read(clientSocket, buffer, sizeof(buffer));
+		// if (n < 0)
+		// 	error("Error reading from socket");
+		// if (n > 0)
+		// 	std::cout << "{Server}: " << buffer << std::endl;
+
+
         std::cout << "Enter a message (type 'exit' to quit): ";
         std::cin.getline(buffer, sizeof(buffer));
 
