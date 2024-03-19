@@ -10,6 +10,7 @@ public:
     ~Client();
 
     void processInput();
+	int getClientSocket();
 
 private:
     int clientSocket;

@@ -15,3 +15,7 @@ void Client::processInput() {
 	// Parse the input and take appropriate action.
 	// Send output to the client's socket.
 }
+
+int Client::getClientSocket() {
+	return clientSocket;
+}
