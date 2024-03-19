@@ -11,6 +11,8 @@ public:
 
     void processInput();
 	int getClientSocket();
+	// Setters
+	void setNickname(std::string nickname);
 
 private:
     int clientSocket;

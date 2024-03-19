@@ -39,6 +39,7 @@ void Server::processInstruction(int clientSocket, int index)
 	bzero(buffer, sizeof(buffer));
 	int bytesRead = read(clientSocket, buffer, sizeof(buffer));
 	// If the client disconnected, remove the client from the server.
+	// IMPORTANT
 	if (bytesRead <= 0)
 	{
 		removeClient(clientSocket, index);
@@ -46,7 +47,7 @@ void Server::processInstruction(int clientSocket, int index)
 	}
 	// Show the received message and the client socket
 	executeCommand(buffer, index);
-	std::cout << "{" << clientSocket << "}:" << buffer << std::endl;
+	std::cout << "{" << clientSocket << "}" << buffer << std::endl;
 }
 
 void Server::run() {
@@ -75,6 +76,8 @@ void Server::run() {
 			{
 				// Process the instruction from the client.
 				processInstruction(fds[i].fd, i);
+				// Send a welcome message to the client.
+				//write(fds[i].fd, ":server 421 teste :teste", 22);
 			}
 		}
 	}
@@ -90,8 +93,8 @@ void Server::addClient(void)
 		throw std::runtime_error("Failed to accept connection.");
 	}
 
-	if (checkPassword(clientSocket))
-	{
+	// if (checkPassword(clientSocket))
+	// {
 		Client newClient(clientSocket);
 		// Add the new client socket to the vector.
 		pollfd newClientFd;
@@ -100,7 +103,10 @@ void Server::addClient(void)
 		fds.push_back(newClientFd);
 		clients.push_back(newClient);
 		std::cout << "Client " << clientSocket << " connected." << std::endl;
-	}
+	// }
+	// Send an hello world to the new client
+	write(clientSocket, "SERVER: Hello World", 20);
+
 }
 
 void Server::removeClient(int clientSocket, int index)
@@ -130,7 +136,7 @@ bool Server::checkPassword(int clientSocket)
 	// The password can have a newline in the end, so we remove it
 	if (strncmp(buffer, password.c_str(), password.size()) != 0)
 	{
-		std::cout << "Client " << clientSocket << " sent an incorrect password." << std::endl;
+		std::cout << "Client " << clientSocket << " sent an incorrect password." << buffer << std::endl;
 		int n = write(clientSocket, "Incorrect password", 18);
 		if (n < 0)
 		{
@@ -139,7 +145,7 @@ bool Server::checkPassword(int clientSocket)
 		close(clientSocket);
 		return false;
 	}
-	int n = write(clientSocket, "Correct password", 18);
+	int n = write(clientSocket, "Correct password", 17);
 	if (n < 0)
 	{
 		throw std::runtime_error("Error writing to socket");
@@ -147,6 +153,7 @@ bool Server::checkPassword(int clientSocket)
 	return true;
 }
 
-	void executeCommand(const std::string& command, int indexClient){
-		String 
-	}
+void Server::executeCommand(const std::string& command, int indexClient){
+	std::cout << "Command: " << command << std::endl;
+	(void)indexClient;
+}

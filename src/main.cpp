@@ -13,6 +13,5 @@ int main(int argc, char* argv[]) {
 
     Server irc(port, password);
     irc.run();
-
     return EXIT_SUCCESS;
 }

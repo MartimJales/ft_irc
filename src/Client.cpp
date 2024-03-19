@@ -19,3 +19,7 @@ void Client::processInput() {
 int Client::getClientSocket() {
 	return clientSocket;
 }
+
+void Client::setNickname(std::string nickname) {
+	this->nickname = nickname;
+}
