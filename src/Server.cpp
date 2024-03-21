@@ -46,7 +46,7 @@ void Server::processInstruction(int clientSocket, int index)
 		return;
 	}
 	// Show the received message and the client socket
-	executeCommand(buffer, index);
+	executeCommand(buffer, index - 1);
 	std::cout << "{" << clientSocket << "}" << buffer << std::endl;
 }
 
@@ -155,5 +155,209 @@ bool Server::checkPassword(int clientSocket)
 
 void Server::executeCommand(const std::string& command, int indexClient){
 	std::cout << "Command: " << command << std::endl;
+
+	char* command_cstr = new char[command.size() + 1];
+    std::strcpy(command_cstr, command.c_str());
 	(void)indexClient;
+	// Split the command to an array
+	char *p = std::strtok(command_cstr, " \n");
+
+	//List all users and nicknames
+	if (command == "LIST\n")
+		listClients();
+	// Set the nickname of the client
+	if (p != NULL && std::strcmp(p, "NICK") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		changeUserNickName(p, indexClient);
+	}
+	// Set the username of the client
+	if (p != NULL && std::strcmp(p, "USER") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		changeUserName(p, indexClient);
+	}
+	// List all channels
+	if (p != NULL && std::strcmp(p, "LIST_C") == 0)
+	{
+		listChannels();
+	}
+	// Join a channel
+	if (p != NULL && std::strcmp(p, "JOIN") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		joinChannel(p, indexClient);
+	}
+	// Send a direct message to a user
+	if (p != NULL && std::strcmp(p, "PRIVMSG") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		std::string nickname(p);
+		p = std::strtok(NULL, "\n");
+		std::string message(p);
+		sendDirectMessage(nickname, message, indexClient);
+	}
+	// Send a message to a channel
+	if (p != NULL && std::strcmp(p, "MSG_C") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		std::string channel(p);
+		p = std::strtok(NULL, "\n");
+		std::string message(p);
+		sendChannelMessage(channel, message, indexClient);
+	}
+	// List of every user in specific channel
+	if (p != NULL && std::strcmp(p, "CHANNEL_USERS") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		std::string channel(p);
+		listChannelUsers(channel);
+	}
+	// Change or view the topic of a channel
+	if (p != NULL && std::strcmp(p, "TOPIC") == 0)
+	{
+		p = std::strtok(NULL, " \n");
+		std::string channel(p);
+		p = std::strtok(NULL, "\n");
+		// IF p is NUll, we are just viewing the topic
+		if (p == NULL)
+			viewChannelTopic(channel, indexClient);	
+		else {
+			std::string topic(p);
+			changeChannelTopic(channel, topic, indexClient);
+		}
+	}
+}
+
+void Server::listClients() {
+    std::cout << "List of clients:" << std::endl;
+    std::vector<Client>::iterator it;
+    for (it = clients.begin(); it != clients.end(); ++it) {
+        std::cout << "Nickname: " << it->getNickName() << std::endl;
+		std::cout << "Username: " << it->getUsername() << std::endl;
+    }
+}
+
+void Server::changeUserNickName(const std::string& nickname, int indexClient) {
+	std::cout << "Client " << indexClient << " changed nickname to " << nickname << std::endl;
+	clients[indexClient].setNickname(nickname);
+}
+
+void Server::changeUserName(const std::string& username, int indexClient) {
+	std::cout << "Client " << indexClient << " changed username to " << username << std::endl;
+	clients[indexClient].setUsername(username);
+}
+
+void Server::listChannels() {
+	std::cout << "List of channels:" << std::endl;
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		std::cout << "Channel: " << it->getName() << std::endl;
+	}
+}
+
+void Server::joinChannel(const std::string& channelName, int indexClient) {
+	std::cout << "Client " << indexClient << " joined channel " << channelName << std::endl;
+	// Check if the channel exists
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channelName) {
+			//TODO: Temos que retirar o cliente do canal anterior
+			it->addMember(&clients[indexClient]);
+			clients[indexClient].setCurrentChannel(channelName);
+			break;
+		}
+	}
+	// If the channel does not exist, create it
+	if (it == channels.end()) {
+		Channel newChannel(channelName);
+		newChannel.addMember(&clients[indexClient]);
+		newChannel.addOperator(&clients[indexClient]);
+		channels.push_back(newChannel);
+		clients[indexClient].setCurrentChannel(channelName);
+	}
+}
+
+void Server::sendDirectMessage(const std::string& nickname, const std::string& message, int indexClient) {
+	std::cout << clients[indexClient].getNickName() << " sent a direct message to " << nickname << ": " << message << std::endl;
+	// Find the client with the nickname
+	std::vector<Client>::iterator it;
+	for (it = clients.begin(); it != clients.end(); ++it) {
+		if (it->getNickName() == nickname) {
+			// Send the message to the client
+			write(it->getClientSocket(), message.c_str(), message.size());
+			break;
+		}
+	}
+}
+
+// TODO: Temos que mudar isto para mapa
+void Server::sendChannelMessage(const std::string& channel, const std::string& message, int indexClient) {
+	std::cout << clients[indexClient].getNickName() << " sent a message to channel " << channel << ": " << message << std::endl;
+	// Check if the indexClient is in the channel
+	if (clients[indexClient].getCurrentChannel() != channel) {
+		std::cout << "Client " << clients[indexClient].getNickName() << " is not in channel " << channel << std::endl;
+		return;
+	}
+	// Find the channel
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channel) {
+			//TODO: Aqui deviamos ter um vetor com os clientes do canal
+			std::vector<Client>::iterator it2;
+			for (it2 = clients.begin(); it2 != clients.end(); ++it2) {
+				if (it2->getCurrentChannel() == channel) {
+					write(it2->getClientSocket(), message.c_str(), message.size());
+				}
+			}
+			break;
+		}
+	}
+}
+
+void Server::listChannelUsers(const std::string& channelName) {
+	std::cout << "List of users in channel " << channelName << ":" << std::endl;
+	// Find the channel
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channelName) {
+			it->listMembers();
+			break;
+		}
+	}
+}	
+
+void Server::changeChannelTopic(const std::string& channel, const std::string& topic, int indexClient) {
+	// Check if the indexClient is in the channel
+	if (clients[indexClient].getCurrentChannel() != channel) {
+		std::cout << "Client " << clients[indexClient].getNickName() << " is not in channel " << channel << std::endl;
+		return;
+	}
+	// Find the channel
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channel) {
+			// Check if the client is an operator of the channel
+			if (it->isOperator(&clients[indexClient]) == false)
+				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
+			else {
+				it->setTopic(topic);
+				std::cout << clients[indexClient].getNickName() << " changed the topic of channel " << channel << " to " << topic << std::endl;
+			}
+			break;
+		}
+	}
+}
+
+void Server::viewChannelTopic(const std::string& channel, int indexClient) {
+	// Find the channel
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channel) {
+			std::cout << "Topic of channel " << channel << ": " << it->getTopic() << std::endl;
+			// Send the topic to the client
+			write(clients[indexClient].getClientSocket(), it->getTopic().c_str(), it->getTopic().size());
+			break;
+		}
+	}
 }
