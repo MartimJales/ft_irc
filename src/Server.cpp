@@ -1,5 +1,6 @@
 #include "Server.hpp"
 
+// Constructor
 Server::Server(int port, const std::string& password) : listenSocket(-1), password(password) {
     // Create a socket for listening.
     listenSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -20,8 +21,11 @@ Server::Server(int port, const std::string& password) : listenSocket(-1), passwo
     if (listen(listenSocket, 10) == -1) {
         throw std::runtime_error("Failed to listen on socket.");
     }
+	createCommandsMap();
+	std::cout << "Server started on port " << port << std::endl;
 }
 
+// Destructor
 Server::~Server() {
     // Close the listening socket and all client sockets.
     close(listenSocket);
@@ -32,24 +36,7 @@ Server::~Server() {
 	}
 }
 
-void Server::processInstruction(int clientSocket, int index)
-{
-	// Read and process instructions from the connected client.
-    char buffer[256];
-	bzero(buffer, sizeof(buffer));
-	int bytesRead = read(clientSocket, buffer, sizeof(buffer));
-	// If the client disconnected, remove the client from the server.
-	// IMPORTANT
-	if (bytesRead <= 0)
-	{
-		removeClient(clientSocket, index);
-		return;
-	}
-	// Show the received message and the client socket
-	executeCommand(buffer, index - 1);
-	std::cout << "{" << clientSocket << "}" << buffer << std::endl;
-}
-
+// Run the server
 void Server::run() {
 	// Create a structure to hold information about the listening socket and all client sockets.
 	pollfd listenFd;
@@ -83,6 +70,232 @@ void Server::run() {
 	}
 }
 
+// Proces the instruction from the client
+void Server::processInstruction(int clientSocket, int index)
+{
+	// Read and process instructions from the connected client.
+    char buffer[256];
+	bzero(buffer, sizeof(buffer));
+	int bytesRead = read(clientSocket, buffer, sizeof(buffer));
+	// If the client disconnected, remove the client from the server.
+	// IMPORTANT
+	if (bytesRead <= 0)
+	{
+		removeClient(clientSocket, index);
+		return;
+	}
+	// Show the received message and the client socket
+	executeCommand(buffer, index - 1);
+	std::cout << "{" << clientSocket << "}" << buffer << std::endl;
+}
+
+// Execute the command from the client
+void Server::executeCommand(const std::string& command, int indexClient){
+
+	char* command_cstr = new char[command.size() + 1];
+    std::strcpy(command_cstr, command.c_str());
+	// Split the command to an array
+	char *tokens = std::strtok(command_cstr, " \n\r");	
+
+	// Run the command corresponding to the command
+	// Check if the command exists
+	if (commands.find(tokens) == commands.end())
+	{
+		std::cout << "Command " << tokens << " does not exist." << std::endl;
+		return;
+	}
+	// TODO: How to send a welcome message to the client.
+	// std::string message = ":irc_server 001 jales :Welcome to the Internet Relay Network jales!jales@localhost\r\n";
+	// write(clients[indexClient].getClientSocket(), message.c_str(), message.size());
+	// std::cout << "Enviou mensagem" << std::endl;
+
+	// Run the command
+	std::cout << "Command: " << command << std::endl;
+	(this->*commands[tokens])(tokens, indexClient);
+}
+
+// Check if the password is correct
+// PASS <password>
+void Server::checkPassword(char *tokens, int clientSocket)
+{
+	tokens = std::strtok(NULL, " \n\r");
+	// Check if the password is correct
+	if (strncmp(tokens, password.c_str(), password.size()) != 0)
+	{
+		std::cout << "Client " << clientSocket << " sent an incorrect password." << tokens << std::endl;
+		sendToClient(clientSocket, "Incorrect password");
+		close(clientSocket);
+		return ;
+	}
+	sendToClient(clientSocket, "Correct password");
+	return ;
+}
+
+// Change the nickname of the client
+// NICK <nickname>
+void Server::changeUserNickName(char *tokens, int indexClient) {
+	std::string nickname(tokens);
+	std::cout << "Client " << indexClient << " changed nickname to " << nickname << std::endl;
+	clients[indexClient].setNickname(nickname);
+}
+
+// Change the username of the client
+// USER <username> <mode> <unused> <realname>
+void Server::changeUserName(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n\r");
+	std::string username(tokens);
+	std::cout << "Client " << indexClient << " changed username to " << username << std::endl;
+	clients[indexClient].setUsername(username);
+}
+
+// Join a channel
+// JOIN #<channel>
+void Server::joinChannel(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n\r");
+	std::string channelName(tokens);
+	std::cout << "Client " << indexClient << " joined channel " << channelName << std::endl;
+	// Check if the channel exists
+	std::vector<Channel>::iterator it;
+	//lengt of channelName
+	std::string::size_type len = channelName.length();
+
+	// Check if the channel name is valid
+	std::cout << "Channel name length: " << len << std::endl;
+
+	for (int i = 0; i < (int)len; i++)
+	{
+        std::cout << channelName[i] + 30 << std::endl;	
+	}
+
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channelName) {
+			//TODO: Temos que retirar o cliente do canal anterior
+			it->addMember(&clients[indexClient]);
+			clients[indexClient].setCurrentChannel(channelName);
+			break;
+		}
+	}
+	// If the channel does not exist, create it
+	if (it == channels.end()) {
+		Channel newChannel(channelName);
+		newChannel.addMember(&clients[indexClient]);
+		newChannel.addOperator(&clients[indexClient]);
+		channels.push_back(newChannel);
+		clients[indexClient].setCurrentChannel(channelName);
+	}
+}
+
+// Send a direct message to a user or a channel
+// PRIVMSG <nickname> <message>
+// PRIVMSG #<channel> <message>
+void Server::sendPrivateMessage(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n");
+	std::string nickname(tokens);
+	tokens = std::strtok(NULL, "\n");
+	std::string message(tokens);
+
+
+	// Check if the message is to a user or a channel
+	if (nickname[0] == '#') {
+		std::cout << "Client " << indexClient << " sent a message to channel " << nickname << ": " << message << std::endl;
+		sendChannelMessage(nickname, message, indexClient);
+	}
+	else {
+		std::cout << "Client " << indexClient << " sent a direct message to " << nickname << ": " << message << std::endl;
+		sendDirectMessage(nickname, message, indexClient);
+	}
+}
+
+// Kick a user from a channel
+// KICK <server> #<channel> :<nickname>
+// TODO: We need to review all this logic
+void Server::kickUser(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n");
+	std::string server(tokens);
+	tokens = std::strtok(NULL, " \n");
+	std::string channel(tokens);
+	// Ignore the ":"
+	tokens = std::strtok(NULL, ":");
+	tokens = std::strtok(NULL, " \n");
+	std::string nickname(tokens);
+	std::cout << "Client " << indexClient << " kicked " << nickname << " from channel " << channel << std::endl;
+	// Find the channel
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channel) {
+			// Check if the client is an operator of the channel
+			if (it->isOperator(&clients[indexClient]) == false)
+				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
+			else {
+				// Find the client with the nickname
+				std::vector<Client>::iterator it2;
+				for (it2 = clients.begin(); it2 != clients.end(); ++it2) {
+					if (it2->getNickName() == nickname) {
+						it->removeMember(&(*it2));
+						break;
+					}
+				}
+			}
+			break;
+		}
+	}
+}
+
+// Invite a user to a channel
+// INVITE <nickname> #<channel>
+void Server::inviteUser(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n");
+	std::string nickname(tokens);
+	tokens = std::strtok(NULL, "\n");
+	std::string channel(tokens);
+	std::cout << "Client " << indexClient << " invited " << nickname << " to channel " << channel << std::endl;
+	// Find the client with the nickname
+	std::vector<Client>::iterator it;
+	for (it = clients.begin(); it != clients.end(); ++it) {
+		if (it->getNickName() == nickname) {
+			// TODO: We need to save the invited clients in the channel
+			write(it->getClientSocket(), "Invite to channel ", 17);
+			write(it->getClientSocket(), channel.c_str(), channel.size());
+			break;
+		}
+	}
+}
+
+// Topic Command
+// TOPIC #<channel> [:<topic>]
+void Server::topicChannel(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n");
+	std::string channel(tokens);
+	tokens = std::strtok(NULL, " \n");
+	// If tokens is NULL, we are just viewing the topic
+	if (tokens == NULL)
+	{
+		viewChannelTopic(channel, indexClient);
+	}
+	else {
+		std::string topic(tokens);
+		changeChannelTopic(channel, topic, indexClient);
+	}
+}
+
+// Channel Modes
+// TODO: We need to implement this
+void Server::channelModes(char *tokens, int indexClient) {
+	(void)tokens;
+	(void)indexClient;
+}
+
+// Quit
+// QUIT [:<message>]
+void Server::quit(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n");
+	std::string message(tokens);
+	std::cout << "Client " << indexClient << " disconnected." << std::endl;
+	if (message.size() > 0)
+		std::cout << "Message: " << message << std::endl;
+	removeClient(clients[indexClient].getClientSocket(), indexClient);
+}
+
 void Server::addClient(void)
 {
 	sockaddr_in clientAddress;
@@ -105,8 +318,7 @@ void Server::addClient(void)
 		std::cout << "Client " << clientSocket << " connected." << std::endl;
 	// }
 	// Send an hello world to the new client
-	write(clientSocket, "SERVER: Hello World", 20);
-
+	sendToClient(clientSocket, "Hello World");
 }
 
 void Server::removeClient(int clientSocket, int index)
@@ -121,160 +333,26 @@ void Server::removeClient(int clientSocket, int index)
 	close(clientSocket);
 }
 
-bool Server::checkPassword(int clientSocket)
-{
-	// Check if the password is correct
-	char buffer[256];
-	bzero(buffer, sizeof(buffer));
-	int bytesRead = read(clientSocket, buffer, sizeof(buffer));
-	if (bytesRead < 0)
-	{
-		throw std::runtime_error("Error reading from socket");
-	}
-	// Print the received password
-	std::cout << "Received password: " << buffer << std::endl;
-	// The password can have a newline in the end, so we remove it
-	if (strncmp(buffer, password.c_str(), password.size()) != 0)
-	{
-		std::cout << "Client " << clientSocket << " sent an incorrect password." << buffer << std::endl;
-		int n = write(clientSocket, "Incorrect password", 18);
-		if (n < 0)
-		{
-			throw std::runtime_error("Error writing to socket");
-		}
-		close(clientSocket);
-		return false;
-	}
-	int n = write(clientSocket, "Correct password", 17);
-	if (n < 0)
-	{
-		throw std::runtime_error("Error writing to socket");
-	}
-	return true;
-}
-
-void Server::executeCommand(const std::string& command, int indexClient){
-	std::cout << "Command: " << command << std::endl;
-
-	char* command_cstr = new char[command.size() + 1];
-    std::strcpy(command_cstr, command.c_str());
+//list clients compatible with map
+void Server::listClients(char *tokens, int indexClient) {
+	(void)tokens;
 	(void)indexClient;
-	// Split the command to an array
-	char *p = std::strtok(command_cstr, " \n");
-
-	//List all users and nicknames
-	if (command == "LIST\n")
-		listClients();
-	// Set the nickname of the client
-	if (p != NULL && std::strcmp(p, "NICK") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		changeUserNickName(p, indexClient);
-	}
-	// Set the username of the client
-	if (p != NULL && std::strcmp(p, "USER") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		changeUserName(p, indexClient);
-	}
-	// List all channels
-	if (p != NULL && std::strcmp(p, "LIST_C") == 0)
-	{
-		listChannels();
-	}
-	// Join a channel
-	if (p != NULL && std::strcmp(p, "JOIN") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		joinChannel(p, indexClient);
-	}
-	// Send a direct message to a user
-	if (p != NULL && std::strcmp(p, "PRIVMSG") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		std::string nickname(p);
-		p = std::strtok(NULL, "\n");
-		std::string message(p);
-		sendDirectMessage(nickname, message, indexClient);
-	}
-	// Send a message to a channel
-	if (p != NULL && std::strcmp(p, "MSG_C") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		std::string channel(p);
-		p = std::strtok(NULL, "\n");
-		std::string message(p);
-		sendChannelMessage(channel, message, indexClient);
-	}
-	// List of every user in specific channel
-	if (p != NULL && std::strcmp(p, "CHANNEL_USERS") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		std::string channel(p);
-		listChannelUsers(channel);
-	}
-	// Change or view the topic of a channel
-	if (p != NULL && std::strcmp(p, "TOPIC") == 0)
-	{
-		p = std::strtok(NULL, " \n");
-		std::string channel(p);
-		p = std::strtok(NULL, "\n");
-		// IF p is NUll, we are just viewing the topic
-		if (p == NULL)
-			viewChannelTopic(channel, indexClient);	
-		else {
-			std::string topic(p);
-			changeChannelTopic(channel, topic, indexClient);
-		}
-	}
-}
-
-void Server::listClients() {
-    std::cout << "List of clients:" << std::endl;
-    std::vector<Client>::iterator it;
-    for (it = clients.begin(); it != clients.end(); ++it) {
-        std::cout << "Nickname: " << it->getNickName() << std::endl;
+	std::cout << "List of clients:" << std::endl;
+	std::vector<Client>::iterator it;
+	for (it = clients.begin(); it != clients.end(); ++it) {
+		std::cout << "Nickname: " << it->getNickName() << std::endl;
 		std::cout << "Username: " << it->getUsername() << std::endl;
-    }
+	}
 }
 
-void Server::changeUserNickName(const std::string& nickname, int indexClient) {
-	std::cout << "Client " << indexClient << " changed nickname to " << nickname << std::endl;
-	clients[indexClient].setNickname(nickname);
-}
-
-void Server::changeUserName(const std::string& username, int indexClient) {
-	std::cout << "Client " << indexClient << " changed username to " << username << std::endl;
-	clients[indexClient].setUsername(username);
-}
-
-void Server::listChannels() {
+//list channels compatible with map
+void Server::listChannels(char *tokens, int indexClient) {
+	(void)tokens;
+	(void)indexClient;
 	std::cout << "List of channels:" << std::endl;
 	std::vector<Channel>::iterator it;
 	for (it = channels.begin(); it != channels.end(); ++it) {
 		std::cout << "Channel: " << it->getName() << std::endl;
-	}
-}
-
-void Server::joinChannel(const std::string& channelName, int indexClient) {
-	std::cout << "Client " << indexClient << " joined channel " << channelName << std::endl;
-	// Check if the channel exists
-	std::vector<Channel>::iterator it;
-	for (it = channels.begin(); it != channels.end(); ++it) {
-		if (it->getName() == channelName) {
-			//TODO: Temos que retirar o cliente do canal anterior
-			it->addMember(&clients[indexClient]);
-			clients[indexClient].setCurrentChannel(channelName);
-			break;
-		}
-	}
-	// If the channel does not exist, create it
-	if (it == channels.end()) {
-		Channel newChannel(channelName);
-		newChannel.addMember(&clients[indexClient]);
-		newChannel.addOperator(&clients[indexClient]);
-		channels.push_back(newChannel);
-		clients[indexClient].setCurrentChannel(channelName);
 	}
 }
 
@@ -359,5 +437,39 @@ void Server::viewChannelTopic(const std::string& channel, int indexClient) {
 			write(clients[indexClient].getClientSocket(), it->getTopic().c_str(), it->getTopic().size());
 			break;
 		}
+	}
+}
+
+void Server::createCommandsMap(void){
+	commands["PASS"] = NULL;
+	commands["NICK"] = &Server::changeUserNickName;
+	commands["USER"] = &Server::changeUserName;
+	commands["JOIN"] = &Server::joinChannel;
+	commands["PRIVMSG"] = NULL;
+	commands["KICK"] = NULL;
+	commands["INVITE"] = NULL;
+	commands["TOPIC"] = NULL;
+	commands["MODE"] = NULL;
+	commands["QUIT"] = NULL;
+	commands["LIST"] = &Server::listClients;
+	commands["LIST_C"] = &Server::listChannels;
+	// commands["CHANNEL_USERS"] = &Server::listChannelUsers;
+}
+
+    // void checkPassword(char *tokens, int clientSocket);
+    // void changeUserNickName(char *tokens, int indexClient);
+    // void changeUserName(char *tokens, int indexClient);
+    // void joinChannel(char *tokens, int indexClient);
+    // void sendDirectMessage(char *tokens, int indexClient);
+    // void kickUser(char *tokens, int indexClient);
+    // void inviteUser(char *tokens, int indexClient);
+    // void topicChannel(char *tokens, int indexClient);
+    // void channelModes(char *tokens, int indexClient);
+    // void quit(char *tokens, int indexClient);
+
+void Server::sendToClient(int clientSocket, const std::string& message) {
+	int n = write(clientSocket, message.c_str(), message.size());
+	if (n < 0) {
+		throw std::runtime_error("Error writing to socket");
 	}
 }

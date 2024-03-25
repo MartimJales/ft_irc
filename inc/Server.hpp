@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <algorithm>
 #include <string>
+#include <map>
 #include "Client.hpp"
 #include "Channel.hpp"
 
@@ -25,24 +26,40 @@ private:
     std::vector<Client> clients;
 	std::vector<pollfd> fds;
 	std::vector<Channel> channels;
+    // Map of commands and functions
+    std::map<std::string, void (Server::*)(char *, int)> commands;
+    // Function to create commands map
+    void createCommandsMap(void);
+
+
     void processInstruction(int clientSocket, int index);
 	void addClient(void);
-	void removeClient(int clientSocket, int index);	
-	bool checkPassword(int clientSocket);
+	void removeClient(int clientSocket, int index);
 	void executeCommand(const std::string& command, int indexClient);
 
+    // Commands needed by the subject
+    void checkPassword(char *tokens, int clientSocket);
+    void changeUserNickName(char *tokens, int indexClient);
+    void changeUserName(char *tokens, int indexClient);
+    void joinChannel(char *tokens, int indexClient);
+    void sendPrivateMessage(char *tokens, int indexClient);
+    void kickUser(char *tokens, int indexClient);
+    void inviteUser(char *tokens, int indexClient);
+    void topicChannel(char *tokens, int indexClient);
+    void channelModes(char *tokens, int indexClient);
+    void quit(char *tokens, int indexClient);
 
-    //Commands
-    void listClients(void);
-    void listChannels(void);
+    //Commands to debug or auxiliary
+    void sendDirectMessage(const std::string& nickname, const std::string& message, int indexClient); // Send a message to a specific client
+    void sendChannelMessage(const std::string& channel, const std::string& message, int indexClient); // Send a message to a specific channel
+    void listClients(char *tokens, int indexClient);
+    void listChannels(char *tokens, int indexClient);
     void listChannelUsers(const std::string& channelName);
-    void changeUserNickName(const std::string& nickname, int indexClient);
-    void changeUserName(const std::string& username, int indexClient);
-    void joinChannel(const std::string& channelName, int indexClient);
-    void sendDirectMessage(const std::string& nickname, const std::string& message, int indexClient);
-    void sendChannelMessage(const std::string& channel, const std::string& message, int indexClient);
     void changeChannelTopic(const std::string& channel, const std::string& topic, int indexClient);
     void viewChannelTopic(const std::string& channel, int indexClient);
+
+    //Auxiliary functions
+    void sendToClient(int clientSocket, const std::string& message);
 };
 
 #endif // SERVER_HPP
