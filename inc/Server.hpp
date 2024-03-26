@@ -60,6 +60,7 @@ private:
 
     //Auxiliary functions
     void sendToClient(int clientSocket, const std::string& message);
+	void debugOnly(char *tokens, int indexClient);
 };
 
 #endif // SERVER_HPP

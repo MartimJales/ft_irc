@@ -95,45 +95,70 @@ void Server::executeCommand(const std::string& command, int indexClient){
 	char* command_cstr = new char[command.size() + 1];
     std::strcpy(command_cstr, command.c_str());
 	// Split the command to an array
-	char *tokens = std::strtok(command_cstr, " \n\r");	
+	char *tokens = std::strtok(command_cstr, " \n\r");
 
-	// Run the command corresponding to the command
-	// Check if the command exists
-	if (commands.find(tokens) == commands.end())
+
+	// While tokens is not NULL
+	while (tokens != NULL)
 	{
-		std::cout << "Command " << tokens << " does not exist." << std::endl;
-		return;
+		// Run the command corresponding to the command
+		// Check if the command exists
+		if (commands.find(tokens) == commands.end())
+		{
+			std::cout << "Command " << tokens << " does not exist." << std::endl;
+			tokens = std::strtok(NULL, " \n\r");
+			continue;
+		}
+		// Run the command
+		(this->*commands[tokens])(tokens, indexClient);
+		// Tokens after method
+		tokens = std::strtok(NULL, " \n\r");
 	}
-	// TODO: How to send a welcome message to the client.
-	// std::string message = ":irc_server 001 jales :Welcome to the Internet Relay Network jales!jales@localhost\r\n";
-	// write(clients[indexClient].getClientSocket(), message.c_str(), message.size());
-	// std::cout << "Enviou mensagem" << std::endl;
 
-	// Run the command
-	std::cout << "Command: " << command << std::endl;
-	(this->*commands[tokens])(tokens, indexClient);
+	// // Run the command corresponding to the command
+	// // Check if the command exists
+	// while (commands.find(tokens) == commands.end())
+	// {
+	// 	std::cout << "Command " << tokens << " does not exist." << std::endl;
+	// 	tokens = std::strtok(NULL, " \n\r");
+	// }
+	// // TODO: How to send a welcome message to the client.
+	// // std::string message = ":irc_server 001 jales :Welcome to the Internet Relay Network jales!jales@localhost\r\n";
+	// // write(clients[indexClient].getClientSocket(), message.c_str(), message.size());
+	// // std::cout << "Enviou mensagem" << std::endl;
+
+	// std::cout << "Tokens before method call: " << tokens << std::endl;
+	// (this->*commands[tokens])(tokens, indexClient);
+	// // Tokens after method
+	// std::cout << "Tokens after method call: " << tokens << std::endl;
 }
 
 // Check if the password is correct
 // PASS <password>
-void Server::checkPassword(char *tokens, int clientSocket)
+void Server::checkPassword(char *tokens, int indexClient)
 {
+	std::cout << "Client " << indexClient << " sent a password." << std::endl;
+	// Get the password
 	tokens = std::strtok(NULL, " \n\r");
+
+	// Tokens in method checkPassword
+	std::cout << "Tokens in method: " << tokens << std::endl;
 	// Check if the password is correct
 	if (strncmp(tokens, password.c_str(), password.size()) != 0)
 	{
-		std::cout << "Client " << clientSocket << " sent an incorrect password." << tokens << std::endl;
-		sendToClient(clientSocket, "Incorrect password");
-		close(clientSocket);
+		std::cout << "Client " << indexClient << " sent an incorrect password." << tokens << std::endl;
+		sendToClient(indexClient, "Incorrect password");
+		close(indexClient);
 		return ;
 	}
-	sendToClient(clientSocket, "Correct password");
+	sendToClient(clients[indexClient].getClientSocket(), "Correct password");
 	return ;
 }
 
 // Change the nickname of the client
 // NICK <nickname>
 void Server::changeUserNickName(char *tokens, int indexClient) {
+	tokens = std::strtok(NULL, " \n\r");
 	std::string nickname(tokens);
 	std::cout << "Client " << indexClient << " changed nickname to " << nickname << std::endl;
 	clients[indexClient].setNickname(nickname);
@@ -150,23 +175,15 @@ void Server::changeUserName(char *tokens, int indexClient) {
 
 // Join a channel
 // JOIN #<channel>
+// TODO: We need to see the situation of the # before the name of the channel, i think it is better to keep it forever
+// TODO: Regarding te mode of the channel, sometimes we need to send the password of the channel when trying to join it
 void Server::joinChannel(char *tokens, int indexClient) {
 	tokens = std::strtok(NULL, " \n\r");
 	std::string channelName(tokens);
 	std::cout << "Client " << indexClient << " joined channel " << channelName << std::endl;
+
 	// Check if the channel exists
 	std::vector<Channel>::iterator it;
-	//lengt of channelName
-	std::string::size_type len = channelName.length();
-
-	// Check if the channel name is valid
-	std::cout << "Channel name length: " << len << std::endl;
-
-	for (int i = 0; i < (int)len; i++)
-	{
-        std::cout << channelName[i] + 30 << std::endl;	
-	}
-
 	for (it = channels.begin(); it != channels.end(); ++it) {
 		if (it->getName() == channelName) {
 			//TODO: Temos que retirar o cliente do canal anterior
@@ -197,6 +214,7 @@ void Server::sendPrivateMessage(char *tokens, int indexClient) {
 
 	// Check if the message is to a user or a channel
 	if (nickname[0] == '#') {
+		// TODO: Here we use the name of the channel with the #
 		std::cout << "Client " << indexClient << " sent a message to channel " << nickname << ": " << message << std::endl;
 		sendChannelMessage(nickname, message, indexClient);
 	}
@@ -219,7 +237,6 @@ void Server::kickUser(char *tokens, int indexClient) {
 	tokens = std::strtok(NULL, " \n");
 	std::string nickname(tokens);
 	std::cout << "Client " << indexClient << " kicked " << nickname << " from channel " << channel << std::endl;
-	// Find the channel
 	std::vector<Channel>::iterator it;
 	for (it = channels.begin(); it != channels.end(); ++it) {
 		if (it->getName() == channel) {
@@ -281,8 +298,27 @@ void Server::topicChannel(char *tokens, int indexClient) {
 // Channel Modes
 // TODO: We need to implement this
 void Server::channelModes(char *tokens, int indexClient) {
-	(void)tokens;
-	(void)indexClient;
+	// Show the tokens
+	tokens = std::strtok(NULL, " \n");
+	std::string channel(tokens);
+	std::cout << "Tokens in channelModes: " << tokens << std::endl;
+	// Find the currrent channel of the client
+	std::string clientChannel = clients[indexClient].getCurrentChannel();
+	if (clientChannel != channel) {
+		std::cout << "Client " << clients[indexClient].getNickName() << " is not in channel " << channel << std::endl;
+		return;
+	}
+	std::vector<Channel>::iterator it;
+	for (it = channels.begin(); it != channels.end(); ++it) {
+		if (it->getName() == channel) {
+			std::cout << "Client " << indexClient << " sent a mode to channel " << channel << std::endl;
+			if (it->isOperator(&clients[indexClient]))
+				it->handleModes(tokens, clients[indexClient].getClientSocket());
+			else
+				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
+			break;
+		}
+	}
 }
 
 // Quit
@@ -352,7 +388,7 @@ void Server::listChannels(char *tokens, int indexClient) {
 	std::cout << "List of channels:" << std::endl;
 	std::vector<Channel>::iterator it;
 	for (it = channels.begin(); it != channels.end(); ++it) {
-		std::cout << "Channel: " << it->getName() << std::endl;
+		std::cout << *it << std::endl;
 	}
 }
 
@@ -403,7 +439,7 @@ void Server::listChannelUsers(const std::string& channelName) {
 			break;
 		}
 	}
-}	
+}
 
 void Server::changeChannelTopic(const std::string& channel, const std::string& topic, int indexClient) {
 	// Check if the indexClient is in the channel
@@ -440,32 +476,29 @@ void Server::viewChannelTopic(const std::string& channel, int indexClient) {
 	}
 }
 
+void Server::debugOnly(char *tokens, int indexClient){
+	(void)tokens;
+	(void)indexClient;
+	std::cout << "If you see this message you need to update createCommandsMap" << std::endl;
+}
+
+
 void Server::createCommandsMap(void){
-	commands["PASS"] = NULL;
+	commands["PASS"] = &Server::checkPassword;
 	commands["NICK"] = &Server::changeUserNickName;
 	commands["USER"] = &Server::changeUserName;
 	commands["JOIN"] = &Server::joinChannel;
-	commands["PRIVMSG"] = NULL;
-	commands["KICK"] = NULL;
-	commands["INVITE"] = NULL;
-	commands["TOPIC"] = NULL;
-	commands["MODE"] = NULL;
-	commands["QUIT"] = NULL;
+	commands["PRIVMSG"] = &Server::debugOnly;
+	commands["KICK"] = &Server::debugOnly;
+	commands["INVITE"] = &Server::debugOnly;
+	commands["TOPIC"] = &Server::debugOnly;
+	commands["MODE"] = &Server::channelModes;
+	commands["QUIT"] = &Server::debugOnly;
 	commands["LIST"] = &Server::listClients;
 	commands["LIST_C"] = &Server::listChannels;
 	// commands["CHANNEL_USERS"] = &Server::listChannelUsers;
 }
 
-    // void checkPassword(char *tokens, int clientSocket);
-    // void changeUserNickName(char *tokens, int indexClient);
-    // void changeUserName(char *tokens, int indexClient);
-    // void joinChannel(char *tokens, int indexClient);
-    // void sendDirectMessage(char *tokens, int indexClient);
-    // void kickUser(char *tokens, int indexClient);
-    // void inviteUser(char *tokens, int indexClient);
-    // void topicChannel(char *tokens, int indexClient);
-    // void channelModes(char *tokens, int indexClient);
-    // void quit(char *tokens, int indexClient);
 
 void Server::sendToClient(int clientSocket, const std::string& message) {
 	int n = write(clientSocket, message.c_str(), message.size());
