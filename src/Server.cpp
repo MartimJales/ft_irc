@@ -151,7 +151,7 @@ void Server::checkPassword(char *tokens, int indexClient)
 		close(indexClient);
 		return ;
 	}
-	sendToClient(clients[indexClient].getClientSocket(), "Correct password");
+	// sendToClient(clients[indexClient].getClientSocket(), "Correct password");
 	return ;
 }
 
@@ -187,7 +187,7 @@ void Server::joinChannel(char *tokens, int indexClient) {
 	for (it = channels.begin(); it != channels.end(); ++it) {
 		if (it->getName() == channelName) {
 			//TODO: Temos que retirar o cliente do canal anterior
-			it->addMember(&clients[indexClient]);
+			it->join(&clients[indexClient]);
 			clients[indexClient].setCurrentChannel(channelName);
 			break;
 		}
@@ -195,8 +195,7 @@ void Server::joinChannel(char *tokens, int indexClient) {
 	// If the channel does not exist, create it
 	if (it == channels.end()) {
 		Channel newChannel(channelName);
-		newChannel.addMember(&clients[indexClient]);
-		newChannel.addOperator(&clients[indexClient]);
+		newChannel.join(&clients[indexClient]);
 		channels.push_back(newChannel);
 		clients[indexClient].setCurrentChannel(channelName);
 	}
@@ -222,41 +221,45 @@ void Server::sendPrivateMessage(char *tokens, int indexClient) {
 		std::cout << "Client " << indexClient << " sent a direct message to " << nickname << ": " << message << std::endl;
 		sendDirectMessage(nickname, message, indexClient);
 	}
+	std::string nickDemo("DEMO");
+	std::string messageDemo("TESTE");
+	std::string reply(RPL_PRIVMSG(nickDemo, messageDemo, nickname, message));
+	write(clients[indexClient].getClientSocket(), reply.c_str(), reply.size());
 }
 
 // Kick a user from a channel
 // KICK <server> #<channel> :<nickname>
 // TODO: We need to review all this logic
-void Server::kickUser(char *tokens, int indexClient) {
-	tokens = std::strtok(NULL, " \n");
-	std::string server(tokens);
-	tokens = std::strtok(NULL, " \n");
-	std::string channel(tokens);
-	// Ignore the ":"
-	tokens = std::strtok(NULL, ":");
-	tokens = std::strtok(NULL, " \n");
-	std::string nickname(tokens);
-	std::cout << "Client " << indexClient << " kicked " << nickname << " from channel " << channel << std::endl;
-	std::vector<Channel>::iterator it;
-	for (it = channels.begin(); it != channels.end(); ++it) {
-		if (it->getName() == channel) {
-			// Check if the client is an operator of the channel
-			if (it->isOperator(&clients[indexClient]) == false)
-				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
-			else {
-				// Find the client with the nickname
-				std::vector<Client>::iterator it2;
-				for (it2 = clients.begin(); it2 != clients.end(); ++it2) {
-					if (it2->getNickName() == nickname) {
-						it->removeMember(&(*it2));
-						break;
-					}
-				}
-			}
-			break;
-		}
-	}
-}
+// void Server::kickUser(char *tokens, int indexClient) {
+// 	tokens = std::strtok(NULL, " \n");
+// 	std::string server(tokens);
+// 	tokens = std::strtok(NULL, " \n");
+// 	std::string channel(tokens);
+// 	// Ignore the ":"
+// 	tokens = std::strtok(NULL, ":");
+// 	tokens = std::strtok(NULL, " \n");
+// 	std::string nickname(tokens);
+// 	std::cout << "Client " << indexClient << " kicked " << nickname << " from channel " << channel << std::endl;
+// 	std::vector<Channel>::iterator it;
+// 	for (it = channels.begin(); it != channels.end(); ++it) {
+// 		if (it->getName() == channel) {
+// 			// Check if the client is an operator of the channel
+// 			if (it->isOperator(&clients[indexClient]) == false)
+// 				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
+// 			else {
+// 				// Find the client with the nickname
+// 				std::vector<Client>::iterator it2;
+// 				for (it2 = clients.begin(); it2 != clients.end(); ++it2) {
+// 					if (it2->getNickName() == nickname) {
+// 						// it->removeMember(&(*it2));
+// 						break;
+// 					}
+// 				}
+// 			}
+// 			break;
+// 		}
+// 	}
+// }
 
 // Invite a user to a channel
 // INVITE <nickname> #<channel>
@@ -354,7 +357,7 @@ void Server::addClient(void)
 		std::cout << "Client " << clientSocket << " connected." << std::endl;
 	// }
 	// Send an hello world to the new client
-	sendToClient(clientSocket, "Hello World");
+	// sendToClient(clientSocket, "Hello World");
 }
 
 void Server::removeClient(int clientSocket, int index)
@@ -399,7 +402,11 @@ void Server::sendDirectMessage(const std::string& nickname, const std::string& m
 	for (it = clients.begin(); it != clients.end(); ++it) {
 		if (it->getNickName() == nickname) {
 			// Send the message to the client
-			write(it->getClientSocket(), message.c_str(), message.size());
+			std::string nickDemo("diogo");
+			std::string messageDemo("dcordovi");
+			std::string reply(RPL_PRIVMSG(nickDemo, messageDemo, nickname, message));
+			sendToClient(it->getClientSocket(), reply);
+			// write(it->getClientSocket(), message.c_str(), message.size());
 			break;
 		}
 	}
@@ -488,7 +495,7 @@ void Server::createCommandsMap(void){
 	commands["NICK"] = &Server::changeUserNickName;
 	commands["USER"] = &Server::changeUserName;
 	commands["JOIN"] = &Server::joinChannel;
-	commands["PRIVMSG"] = &Server::debugOnly;
+	commands["PRIVMSG"] = &Server::sendPrivateMessage;
 	commands["KICK"] = &Server::debugOnly;
 	commands["INVITE"] = &Server::debugOnly;
 	commands["TOPIC"] = &Server::debugOnly;
@@ -515,6 +522,5 @@ Client * Server::getClient(std::string nickname)
             return &(*it); // Return pointer to the Client object
         }
     }
-    return nullptr; // Return nullptr if client not found
+    return NULL; // Return nullptr if client not found
 }
-

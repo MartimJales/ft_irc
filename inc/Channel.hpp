@@ -11,24 +11,21 @@
 
 class Channel {
 public:
-    Channel(const std::string& name);
-    ~Channel();
+	Channel(const std::string& name);
+	~Channel();
 
-    // Getters
-    std::string getName() const;
-    std::string getTopic() const;
+	// Getters
+	std::string getName() const;
+	std::string getTopic() const;
 
-    //Setters
-    void setName(const std::string& name);
-    void setTopic(const std::string& topic);
+	//Setters
+	void setName(const std::string& name);
+	void setTopic(const std::string& topic);
 
-    //Methods
-    void addMember(Client* member);
-    void removeMember(Client* member);
-    void addOperator(Client* op);
-    void removeOperator(Client* op);
-    void listMembers();
-    bool isOperator(Client* client);
+	//Methods
+	void listMembers();
+	bool isOperator(Client* client);
+	void join(Client* client);
 
 	// Modes
 	void handleModes(char *tokens, Client *client);
@@ -46,17 +43,24 @@ public:
 	bool	inviteOnly;
 	bool	topicProtected;
 	bool	keyProtected;
-	int		usersLimit;
-    std::vector<Client*> operators;
+	long unsigned int		usersLimit;
+	std::vector<Client*> operators;
+
 private:
-    std::string name;
-    std::string topic;
+	std::string name;
+	std::string topic;
 	std::string key;
-    std::vector<Client*> members;
-    std::vector<Client*> banned;
+	std::vector<Client*> members;
+	std::vector<Client*> banned;
 
 	// Map of modes and functions
-    std::map<std::string, void (Channel::*)(char *, Client *)> modes;
+	std::map<std::string, void (Channel::*)(char *, Client *)> modes;
+
+	// Private methods
+	void addMember(Client* member);
+	void removeMember(Client* member);
+	void addOperator(Client* op);
+	void removeOperator(Client* op);
 
 };
 

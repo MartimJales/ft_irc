@@ -13,6 +13,7 @@
 #include <map>
 #include "Client.hpp"
 #include "Channel.hpp"
+#include "Replies.hpp"
 
 class Server {
 public:

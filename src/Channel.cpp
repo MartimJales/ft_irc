@@ -1,5 +1,9 @@
 #include "Channel.hpp"
 
+
+// TODO: We need to be carefull with the number of args:
+// Example: MODE #teste +k *NOTHING HERE*
+
 Channel::Channel(const std::string& name) : name(name) {
 	// Initialize the modes map
 	modes["+i"] = &Channel::setInviteOnly;
@@ -10,17 +14,16 @@ Channel::Channel(const std::string& name) : name(name) {
 	modes["-k"] = &Channel::removeKeyProtected;
 	modes["+l"] = &Channel::setUsersLimit;
 	modes["-l"] = &Channel::removeUsersLimit;
-	//TODO: We need to implemnt the add and remove operator premisions
 	modes["+o"]= &Channel::addOperatorPremission;
 	modes["-o"]= &Channel::removeOperatorPremission;
 	inviteOnly = false;
 	topicProtected = false;
 	keyProtected = false;
-	usersLimit = 10;
+	usersLimit = -1;
 }
 
 Channel::~Channel() {
-	// TODO: Implement destructor
+	// Free the modes map
 }
 
 std::string Channel::getName() const {
@@ -91,29 +94,32 @@ bool Channel::isOperator(Client* client) {
 
 void Channel::addOperatorPremission(char *tokens, Client *client)
 {
+	tokens = std::strtok(NULL, " \n\r");
 	//check that client is in the members vector and give operator to said client
 	std::vector<Client*>::iterator it;
 	for (it = members.begin(); it != members.end(); ++it) {
-		if (*it == client) {
-			operators.push_back(client);
+		if ((*it)->getNickName() == tokens) {
+			operators.push_back(*it);
 			break;
 		}
 	}
-	std::cout << "Client " << client->getNickName() << " is now an operator of channel " << name << std::endl;
+	std::cout << "Client " << tokens << " is now an operator of channel " << name << std::endl;
+	(void)client;
 }
 
 void Channel::removeOperatorPremission(char *tokens, Client *client)
 {
+	tokens = std::strtok(NULL, " \n\r");
 	//remove operator permission to the client
 	std::vector<Client*>::iterator it;
 	for (it = operators.begin(); it != operators.end(); ++it) {
-		if (*it == client) {
+		if ((*it)->getNickName() == tokens) {
 			operators.erase(it);
 			break;
 		}
 	}
-	std::cout << "Client " << client->getNickName() << " is no longer an operator of channel " << name << std::endl;
-	(void)tokens;
+	std::cout << "Client " << tokens << " is no longer an operator of channel " << name << std::endl;
+	(void)client;
 }
 
 void Channel::handleModes(char *tokens, Client *client) {
@@ -176,6 +182,10 @@ void Channel::removeKeyProtected(char *tokens, Client *client) {
 void Channel::setUsersLimit(char *tokens, Client *client) {
 	tokens = std::strtok(NULL, " \n\r");
 	usersLimit = std::atoi(tokens);
+	if (usersLimit < 1) {
+		std::cout << "Invalid limit of users." << std::endl;
+		return;
+	}
 	std::cout << "Channel " << name << " now has a limit of " << usersLimit << " users." << std::endl;
 		(void)tokens;
 	(void)client;
@@ -183,7 +193,7 @@ void Channel::setUsersLimit(char *tokens, Client *client) {
 }
 
 void Channel::removeUsersLimit(char *tokens, Client *client) {
-	usersLimit = 10;
+	usersLimit = -1;
 	std::cout << "Channel " << name << " no longer has a limit of users." << std::endl;
 	(void)tokens;
 	(void)client;
@@ -193,13 +203,15 @@ void Channel::removeUsersLimit(char *tokens, Client *client) {
 // EXAMPLE: #<channelname>{<topic>}[<number of members>](<modes>)
 std::ostream& operator<<(std::ostream& os, const Channel& channel) {
 	os << channel.getName() << "{" << channel.getTopic() << "}";
-	if (channel.inviteOnly)
+	if (channel.inviteOnly){
+		// std::cout << "Quero adicionar o +i" << std::endl;
 		os << "(+i)";
+	}
 	if (channel.topicProtected)
 		os << "(+t)";
 	if (channel.keyProtected)
 		os << "(+k)";
-	if (channel.usersLimit != 10)
+	if (channel.usersLimit != (long unsigned int)-1)
 		os << "(+l)";
 
 	// Show nicks of operators
@@ -207,6 +219,40 @@ std::ostream& operator<<(std::ostream& os, const Channel& channel) {
 	for (it = channel.operators.begin(); it != channel.operators.end(); ++it) {
 		os << (*it)->getNickName() << " ";
 	}
-
 	return os;
+}
+
+void Channel::join(Client *client){
+	//check if the client is already in the channel
+	std::vector<Client*>::iterator it;
+	for (it = members.begin(); it != members.end(); ++it) {
+		if (*it == client) {
+			std::cout << "Client " << client->getNickName() << " is already in channel " << name << std::endl;
+			return;
+		}
+	}
+	//check if the channel is invite only
+	if (inviteOnly) {
+		std::cout << "Channel " << name << " is invite only." << std::endl;
+		return;
+	}
+	//check if the channel is full
+	if (members.size() >= usersLimit && usersLimit != (long unsigned int)-1) {
+		std::cout << "Channel " << name << " is full." << std::endl;
+		return;
+	}
+	//check if the channel is key protected
+	if (keyProtected) {
+		char *tokens = std::strtok(NULL, " \n\r");
+		if (tokens == NULL || key != tokens) {
+			std::cout << "Channel " << name << " is key protected." << std::endl;
+			return;
+		}
+	}
+	//add the client to the channel
+	members.push_back(client);
+	if (members.size() == 1) {
+		operators.push_back(client);
+	}
+	std::cout << "Client " << client->getNickName() << " joined channel " << name << std::endl;
 }
