@@ -313,7 +313,7 @@ void Server::channelModes(char *tokens, int indexClient) {
 		if (it->getName() == channel) {
 			std::cout << "Client " << indexClient << " sent a mode to channel " << channel << std::endl;
 			if (it->isOperator(&clients[indexClient]))
-				it->handleModes(tokens, clients[indexClient].getClientSocket());
+				it->handleModes(tokens, &clients[indexClient]);
 			else
 				std::cout << "Client " << clients[indexClient].getNickName() << " is not an operator of channel " << channel << std::endl;
 			break;
@@ -506,3 +506,15 @@ void Server::sendToClient(int clientSocket, const std::string& message) {
 		throw std::runtime_error("Error writing to socket");
 	}
 }
+
+Client * Server::getClient(std::string nickname)
+{
+    std::vector<Client>::iterator it;
+    for (it = clients.begin(); it != clients.end(); ++it) {
+        if (it->getNickName() == nickname) {
+            return &(*it); // Return pointer to the Client object
+        }
+    }
+    return nullptr; // Return nullptr if client not found
+}
+

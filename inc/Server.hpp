@@ -19,6 +19,7 @@ public:
     Server(int port, const std::string& password);
     ~Server();
     void run();
+	Client *getClient(std::string nickname);
 
 private:
     int listenSocket;

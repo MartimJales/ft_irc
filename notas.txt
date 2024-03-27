@@ -1,0 +1,37 @@
+comando entrada do user
+CAP LS 302
+PASS <password>
+NICK <nickname>
+USER <username> <mode> <unused> <a real name>
+comando /join
+JOIN #<channel>
+comando /msg
+PRIVMSG <nickname> :<message>
+or
+PRIVMSG #<channel> :<message>
+kick user from channel
+KICK <server name> #<channel> :<nickname>
+comando invite
+INVITE <nickname> #<channel>
+change or view the channel topic
+TOPIC #<channel> :#<newtopic> //change
+TOPIC #<channel> //view
+===CHANNEL MODES===
+set remove invite only channel
+MODE #<channel> +i //set
+MODE #<channel> -i //remove
+set remove topic restrictions
+MODE #<channel> +t set //everyone
+MODE #<channel> -t remove //operators
+change password
+MODE #<channel> +k <password>
+MODE #<channel> -k //remove password
+give operator to user
+MODE #<channel> +o <nickname>//set
+MODE #<channel> -o <nickmane>//remove
+set remove user limit from channel
+MODE #<channel> +l <limit> //pôr limite
+MODE #<channel> -l // tirar o limite
+
+quit server
+QUIT :<message>

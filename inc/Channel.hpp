@@ -31,30 +31,32 @@ public:
     bool isOperator(Client* client);
 
 	// Modes
-	void handleModes(char *tokens, int clientSocket);
-	void setInviteOnly(char *tokens, int clientSocket);
-	void removeInviteOnly(char *tokens, int clientSocket);
-	void setTopicProtected(char *tokens, int clientSocket);
-	void removeTopicProtected(char *tokens, int clientSocket);
-	void setKeyProtected(char *tokens, int clientSocket);
-	void removeKeyProtected(char *tokens, int clientSocket);
-	void setUsersLimit(char *tokens, int clientSocket);
-	void removeUsersLimit(char *tokens, int clientSocket);
+	void handleModes(char *tokens, Client *client);
+	void setInviteOnly(char *tokens, Client *client);
+	void removeInviteOnly(char *tokens, Client *client);
+	void setTopicProtected(char *tokens, Client *client);
+	void removeTopicProtected(char *tokens, Client *client);
+	void setKeyProtected(char *tokens, Client *client);
+	void removeKeyProtected(char *tokens, Client *client);
+	void setUsersLimit(char *tokens, Client *client);
+	void removeUsersLimit(char *tokens, Client *client);
+	void addOperatorPremission(char *tokens, Client *client);
+	void removeOperatorPremission(char *tokens, Client *client);
 	// TODO: Isto devia estar privado, coloquei aqui só por causa do operator<<
 	bool	inviteOnly;
 	bool	topicProtected;
 	bool	keyProtected;
 	int		usersLimit;
+    std::vector<Client*> operators;
 private:
     std::string name;
     std::string topic;
 	std::string key;
     std::vector<Client*> members;
     std::vector<Client*> banned;
-    std::vector<Client*> operators;
 
 	// Map of modes and functions
-    std::map<std::string, void (Channel::*)(char *, int)> modes;
+    std::map<std::string, void (Channel::*)(char *, Client *)> modes;
 
 };
 
